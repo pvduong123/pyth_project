@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "components/layout.html" as layout %}
+{% block title %}Dashboard · {{ app_name }}{% endblock %}
+{% block body %}
+<main class="app-shell">
+  {{ layout.sidebar(current_user) }}
+  <section class="content">
+    <header class="page-header">
+      <div>
+        <span class="eyebrow">Dashboard</span>
+        <h1>Welcome back, {{ current_user.full_name.split(' ')[0] }}</h1>
+        <p>Protected SaaS area with reusable UI panels and a clean service boundary behind it.</p>
+      </div>
+    </header>
+
+    <section class="stat-grid">
+      {% for stat in stats %}
+      <article class="stat-card">
+        <p>{{ stat.label }}</p>
+        <strong>{{ stat.value }}</strong>
+      </article>
+      {% endfor %}
+    </section>
+
+    {% call layout.panel('Starter Checklist', 'Use these pages as the basis for the rest of your product.') %}
+    <ul class="list">
+      <li>Cookie-backed auth with server-side session persistence.</li>
+      <li>API endpoints at <code>/api/v1/auth/*</code> for frontend or mobile clients.</li>
+      <li>Protected dashboard, profile, and billing settings routes.</li>
+      <li>Cleanly separated domain, application, infrastructure, and presentation layers.</li>
+    </ul>
+    {% endcall %}
+  </section>
+</main>
+{% endblock %}
