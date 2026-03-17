@@ -1,7 +1,7 @@
-{% macro sidebar(current_user) %}
+{% macro sidebar(current_user, app_name) %}
 <aside class="sidebar">
   <div>
-    <div class="brand">SaaS Starter</div>
+    <div class="brand">{{ app_name }}</div>
     <p class="sidebar__subtitle">FastAPI + PostgreSQL foundation</p>
   </div>
   <nav class="sidebar__nav">

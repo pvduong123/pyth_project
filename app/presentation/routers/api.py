@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.exc import OperationalError
 
 from app.application.auth_service import AuthService
 from app.application.errors import (
@@ -89,10 +90,16 @@ def forgot_password(
     request: Request,
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
 ) -> MessageResponse:
-    password_reset_service.request_password_reset(
-        email=payload.email,
-        reset_link_base_url=str(request.base_url).rstrip("/"),
-    )
+    try:
+        password_reset_service.request_password_reset(
+            email=payload.email,
+            reset_link_base_url=str(request.base_url).rstrip("/"),
+        )
+    except OperationalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable. Start PostgreSQL and try again.",
+        ) from exc
     return MessageResponse(message="If the account exists, a password reset link has been sent.")
 
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import OperationalError
 
 from app.application.auth_service import AuthService
 from app.application.billing_service import BillingService
@@ -36,11 +37,13 @@ def render_template(
     template_name: str,
     settings: Settings,
     current_user: User | None = None,
+    status_code: int = status.HTTP_200_OK,
     **context: object,
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name=template_name,
+        status_code=status_code,
         context={
             "app_name": settings.app_name,
             "current_user": current_user,
@@ -148,10 +151,22 @@ def forgot_password_action(
     settings: Settings = Depends(get_settings),
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
 ) -> Response:
-    password_reset_service.request_password_reset(
-        email=email,
-        reset_link_base_url=str(request.base_url).rstrip("/"),
-    )
+    try:
+        password_reset_service.request_password_reset(
+            email=email,
+            reset_link_base_url=str(request.base_url).rstrip("/"),
+        )
+    except OperationalError:
+        return render_template(
+            request,
+            "auth/forgot_password.html",
+            settings=settings,
+            current_user=None,
+            errors={"form": "Database is unavailable. Start PostgreSQL and try again."},
+            success_message=None,
+            values={"email": email},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
     return render_template(
         request,
         "auth/forgot_password.html",
