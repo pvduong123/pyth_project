@@ -26,12 +26,22 @@ You can also use the orchestration script:
 ./scripts/run_agents.sh "Describe the feature or bugfix here"
 ```
 
+Useful variants:
+
+```bash
+./scripts/run_agents.sh --parallel "Describe the feature or bugfix here"
+./scripts/run_agents.sh --only review "Review the current working tree"
+./scripts/run_agents.sh --only test "Write tests for the current working tree"
+./scripts/run_agents.sh --verify-cmd "pytest tests/test_password_reset.py -q" "Harden password reset flow"
+```
+
 The script will:
 
 - snapshot the repo before the run
 - execute `Code Agent`
 - review only the changes introduced during that run
 - execute `Test Agent`
+- optionally run `Review Agent` and `Test Agent` in parallel after the code stage
 - optionally run `ruff check .` and `pytest -q`
 - save prompts, outputs, diffs, and verification logs under `.agent-runs/`
 
