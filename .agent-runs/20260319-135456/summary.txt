@@ -1,0 +1,6 @@
+Run directory: /Users/mito/WorkSpace/Python_Project/.agent-runs/20260319-135456
+Task: Improve workflow feature currently reset password
+Mode: all
+Model: default
+Parallel review/test: 1
+Verification enabled: 1

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-saas-starter"
+version = "0.1.0"
+description = "Production-ready SaaS starter built with FastAPI and PostgreSQL."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.14.0,<2.0.0",
+    "PyJWT>=2.9.0,<3.0.0",
+    "email-validator>=2.2.0,<3.0.0",
+    "fastapi>=0.115.0,<1.0.0",
+    "jinja2>=3.1.4,<4.0.0",
+    "pydantic-settings>=2.6.0,<3.0.0",
+    "pwdlib[argon2]>=0.2.1,<1.0.0",
+    "psycopg[binary]>=3.2.3,<4.0.0",
+    "python-multipart>=0.0.12,<1.0.0",
+    "sqlalchemy>=2.0.36,<3.0.0",
+    "uvicorn>=0.32.0,<1.0.0",
+]
+
+[tool.setuptools]
+packages = [
+    "app",
+    "app.application",
+    "app.core",
+    "app.domain",
+    "app.domain.entities",
+    "app.domain.repositories",
+    "app.domain.services",
+    "app.infrastructure",
+    "app.infrastructure.database",
+    "app.infrastructure.notifications",
+    "app.infrastructure.repositories",
+    "app.infrastructure.security",
+    "app.presentation",
+    "app.presentation.dependencies",
+    "app.presentation.routers",
+    "app.presentation.schemas",
+]

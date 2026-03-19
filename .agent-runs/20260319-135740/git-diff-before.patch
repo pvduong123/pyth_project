@@ -1,0 +1,45 @@
+diff --git a/scripts/run_agents.sh b/scripts/run_agents.sh
+index cbfce59..9726c75 100755
+--- a/scripts/run_agents.sh
++++ b/scripts/run_agents.sh
+@@ -69,20 +69,18 @@ run_codex_exec() {
+ 
+ build_rsync_args() {
+   local mode="$1"
+-  local -n target_ref="$2"
+   local pattern
+-
+-  target_ref=()
+   for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+-    target_ref+=("$mode" "$pattern")
++    printf '%s\0%s\0' "$mode" "$pattern"
+   done
+ }
+ 
+ snapshot_repo() {
+   local -a rsync_excludes
+-
+   mkdir -p "$BASELINE_DIR"
+-  build_rsync_args --exclude rsync_excludes
++  while IFS= read -r -d '' item; do
++    rsync_excludes+=("$item")
++  done < <(build_rsync_args --exclude)
+ 
+   rsync -a --delete "${rsync_excludes[@]}" "$ROOT/" "$BASELINE_DIR/"
+ }
+@@ -96,8 +94,13 @@ collect_run_changes() {
+   local -a diff_excludes
+   local diff_status
+ 
+-  build_rsync_args --exclude rsync_excludes
+-  build_rsync_args -x diff_excludes
++  while IFS= read -r -d '' item; do
++    rsync_excludes+=("$item")
++  done < <(build_rsync_args --exclude)
++
++  while IFS= read -r -d '' item; do
++    diff_excludes+=("$item")
++  done < <(build_rsync_args -x)
+ 
+   rsync -ani --delete "${rsync_excludes[@]}" "$BASELINE_DIR/" "$ROOT/" > "$rsync_file"
+   awk 'NF >= 2 {print $2}' "$rsync_file" | sed '/\/$/d' | sort -u > "$changes_file"

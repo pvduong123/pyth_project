@@ -1,0 +1,32 @@
+{% macro sidebar(current_user, app_name) %}
+<aside class="sidebar">
+  <div>
+    <div class="brand">{{ app_name }}</div>
+    <p class="sidebar__subtitle">FastAPI + PostgreSQL foundation</p>
+  </div>
+  <nav class="sidebar__nav">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/profile">Profile</a>
+    <a href="/settings/billing">Billing</a>
+  </nav>
+  <div class="sidebar__footer">
+    <p>{{ current_user.full_name }}</p>
+    <p class="muted">{{ current_user.email }}</p>
+    <form action="/logout" method="post">
+      <button class="button button--secondary button--full" type="submit">Sign out</button>
+    </form>
+  </div>
+</aside>
+{% endmacro %}
+
+{% macro panel(title, subtitle='') %}
+<section class="panel">
+  <div class="panel__header">
+    <h2>{{ title }}</h2>
+    {% if subtitle %}
+    <p>{{ subtitle }}</p>
+    {% endif %}
+  </div>
+  {{ caller() }}
+</section>
+{% endmacro %}

@@ -1,0 +1,6 @@
+ M app/presentation/routers/web.py
+ M scripts/run_agents.sh
+ M templates/auth/reset_password.html
+ M tests/test_password_reset.py
+?? .agent-home/
+?? .agent-runs/

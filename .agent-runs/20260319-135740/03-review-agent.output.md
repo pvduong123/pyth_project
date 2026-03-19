@@ -1,0 +1,5 @@
+- Severity: Medium
+- File: [app/presentation/routers/web.py](/Users/mito/WorkSpace/Python_Project/app/presentation/routers/web.py#L204)
+- The new `confirm_password: str = Form(...)` makes `POST /reset-password` fail at FastAPI request binding time whenever that field is absent, so the handler never reaches the existing HTML error path. In that case the app returns the framework’s default 422 validation response instead of re-rendering the reset form with a user-facing message.
+- Why it matters: this is a web-flow regression for any stale/cached reset form rendered before this deploy, and for any client that still posts the old payload. The rest of this route handles validation as a normal form error; this one case now escapes that contract and produces an inconsistent response shape/status.
+- Short fix suggestion: make `confirm_password` optional at the binding layer, then validate `None`/mismatch inside the handler and render the template with an error, or add web-specific `RequestValidationError` handling if you want missing form fields to stay in the HTML flow.

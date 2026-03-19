@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "components/forms.html" as forms %}
+{% import "components/layout.html" as layout %}
+{% block title %}Billing · {{ app_name }}{% endblock %}
+{% block body %}
+<main class="app-shell">
+  {{ layout.sidebar(current_user, app_name) }}
+  <section class="content">
+    <header class="page-header">
+      <div>
+        <span class="eyebrow">Billing Settings</span>
+        <h1>Billing profile UI</h1>
+        <p>Starter billing settings page. Swap the form handlers with Stripe or your billing provider when needed.</p>
+      </div>
+    </header>
+
+    {% if errors.form %}
+    <div class="alert alert--error">{{ errors.form }}</div>
+    {% endif %}
+    {% if success_message %}
+    <div class="alert alert--success">{{ success_message }}</div>
+    {% endif %}
+
+    <section class="billing-grid">
+      {% call layout.panel('Subscription', 'Static SaaS billing UI that persists basic account preferences.') %}
+      <div class="plan-chip">{{ billing_profile.plan_name }}</div>
+      <ul class="list">
+        <li>Seat-based billing: ready to integrate.</li>
+        <li>Invoices and cards: replace with provider widgets.</li>
+        <li>Tax and legal profile: persisted in PostgreSQL.</li>
+      </ul>
+      {% endcall %}
+
+      {% call layout.panel('Billing Details', 'This page is route-protected and backed by its own application service.') %}
+      <form action="/settings/billing" method="post" class="stack">
+        {{ forms.input('company_name', 'Company name', billing_profile.company_name, autocomplete='organization', required=false) }}
+        {{ forms.input('billing_email', 'Billing email', billing_profile.billing_email, type='email', autocomplete='email') }}
+        {{ forms.input('plan_name', 'Plan name', billing_profile.plan_name, required=false) }}
+        {{ forms.input('tax_id', 'Tax ID', billing_profile.tax_id, required=false) }}
+        {{ forms.button('Save billing settings') }}
+      </form>
+      {% endcall %}
+    </section>
+  </section>
+</main>
+{% endblock %}

@@ -46,6 +46,10 @@ Modes:
 
 Outputs:
   .agent-runs/<timestamp>/
+
+Notes:
+  - Nested Codex runs use an isolated runtime under .agent-home/.codex by default.
+  - The script will copy ~/.codex/auth.json into that runtime if needed.
 EOF
 }
 
@@ -59,30 +63,69 @@ require_cmd() {
 run_codex_exec() {
   local prompt_file="$1"
   local output_file="$2"
+  local -a cmd
+
+  cmd=(
+    codex exec
+    --full-auto
+    --color never
+    -C "$ROOT"
+    -o "$output_file"
+  )
 
   if [[ -n "$MODEL" ]]; then
-    codex exec --full-auto -C "$ROOT" -m "$MODEL" -o "$output_file" - < "$prompt_file"
-  else
-    codex exec --full-auto -C "$ROOT" -o "$output_file" - < "$prompt_file"
+    cmd+=(-m "$MODEL")
   fi
+
+  (
+    export HOME="$AGENT_HOME_ROOT"
+    export CODEX_HOME="$AGENT_CODEX_HOME"
+    export XDG_CONFIG_HOME="$AGENT_XDG_CONFIG_HOME"
+    "${cmd[@]}" - < "$prompt_file"
+  )
+}
+
+prepare_codex_runtime() {
+  local source_auth="${HOME}/.codex/auth.json"
+
+  mkdir -p \
+    "$AGENT_HOME_ROOT" \
+    "$AGENT_CODEX_HOME" \
+    "$AGENT_XDG_CONFIG_HOME" \
+    "$AGENT_CODEX_HOME/memories" \
+    "$AGENT_CODEX_HOME/sessions" \
+    "$AGENT_CODEX_HOME/shell_snapshots" \
+    "$AGENT_CODEX_HOME/tmp"
+
+  if [[ -f "$source_auth" ]]; then
+    cp "$source_auth" "$AGENT_CODEX_HOME/auth.json"
+  fi
+
+  cat > "$AGENT_CODEX_HOME/config.toml" <<EOF
+model = "${MODEL:-gpt-5.4}"
+model_reasoning_effort = "medium"
+suppress_unstable_features_warning = true
+
+[features]
+default_mode_request_user_input = false
+multi_agent = false
+EOF
 }
 
 build_rsync_args() {
   local mode="$1"
-  local -n target_ref="$2"
   local pattern
-
-  target_ref=()
   for pattern in "${EXCLUDE_PATTERNS[@]}"; do
-    target_ref+=("$mode" "$pattern")
+    printf '%s\0%s\0' "$mode" "$pattern"
   done
 }
 
 snapshot_repo() {
   local -a rsync_excludes
-
   mkdir -p "$BASELINE_DIR"
-  build_rsync_args --exclude rsync_excludes
+  while IFS= read -r -d '' item; do
+    rsync_excludes+=("$item")
+  done < <(build_rsync_args --exclude)
 
   rsync -a --delete "${rsync_excludes[@]}" "$ROOT/" "$BASELINE_DIR/"
 }
@@ -96,8 +139,13 @@ collect_run_changes() {
   local -a diff_excludes
   local diff_status
 
-  build_rsync_args --exclude rsync_excludes
-  build_rsync_args -x diff_excludes
+  while IFS= read -r -d '' item; do
+    rsync_excludes+=("$item")
+  done < <(build_rsync_args --exclude)
+
+  while IFS= read -r -d '' item; do
+    diff_excludes+=("$item")
+  done < <(build_rsync_args -x)
 
   rsync -ani --delete "${rsync_excludes[@]}" "$BASELINE_DIR/" "$ROOT/" > "$rsync_file"
   awk 'NF >= 2 {print $2}' "$rsync_file" | sed '/\/$/d' | sort -u > "$changes_file"
@@ -134,6 +182,8 @@ write_summary() {
     echo "Model: ${MODEL:-default}"
     echo "Parallel review/test: $PARALLEL_REVIEW_TEST"
     echo "Verification enabled: $RUN_VERIFY"
+    echo "Agent home root: $AGENT_HOME_ROOT"
+    echo "Agent CODEX_HOME: $AGENT_CODEX_HOME"
   } > "$summary_file"
 }
 
@@ -408,6 +458,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 AGENTS_DIR="$ROOT/agents"
 RUNS_DIR="${AGENT_RUNS_DIR:-$ROOT/.agent-runs}"
+AGENT_HOME_ROOT="${AGENT_HOME_ROOT:-$ROOT/.agent-home}"
+AGENT_CODEX_HOME="${AGENT_CODEX_HOME:-$AGENT_HOME_ROOT/.codex}"
+AGENT_XDG_CONFIG_HOME="${AGENT_XDG_CONFIG_HOME:-$AGENT_HOME_ROOT/.config}"
 STAMP="$(date +"%Y%m%d-%H%M%S")"
 RUN_DIR="$RUNS_DIR/$STAMP"
 BASELINE_DIR="$RUN_DIR/baseline"
@@ -428,6 +481,7 @@ do
 done
 
 mkdir -p "$RUN_DIR"
+prepare_codex_runtime
 write_summary
 
 echo "Run directory: $RUN_DIR"

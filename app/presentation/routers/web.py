@@ -206,10 +206,13 @@ def reset_password_action(
     request: Request,
     token: str = Form(...),
     password: str = Form(...),
+    confirm_password: str = Form(...),
     settings: Settings = Depends(get_settings),
     password_reset_service: PasswordResetService = Depends(get_password_reset_service),
 ) -> Response:
     try:
+        if password != confirm_password:
+            raise ValidationError("Passwords do not match.")
         password_reset_service.reset_password(raw_token=token, new_password=password)
     except (InvalidResetTokenError, ValidationError) as exc:
         return render_template(

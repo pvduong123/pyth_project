@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "components/forms.html" as forms %}
+{% block title %}Register · {{ app_name }}{% endblock %}
+{% block body %}
+<main class="auth-shell">
+  <section class="auth-card">
+    <div class="auth-card__intro">
+      <span class="eyebrow">Get Started</span>
+      <h1>Create your SaaS workspace</h1>
+      <p>The starter provisions your account, session, dashboard access, and starter billing profile.</p>
+    </div>
+    {% if errors.form %}
+    <div class="alert alert--error">{{ errors.form }}</div>
+    {% endif %}
+    <form action="/register" method="post" class="stack">
+      {{ forms.input('full_name', 'Full name', values.full_name if values else '', autocomplete='name', placeholder='Ada Lovelace') }}
+      {{ forms.input('email', 'Email', values.email if values else '', type='email', autocomplete='email', placeholder='founder@example.com') }}
+      {{ forms.input('password', 'Password', '', type='password', autocomplete='new-password', placeholder='At least 8 characters') }}
+      {{ forms.button('Create account', full_width=true) }}
+    </form>
+    <p class="auth-card__meta">Already have an account? <a href="/login">Sign in</a>.</p>
+  </section>
+</main>
+{% endblock %}

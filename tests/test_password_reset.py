@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 from app.application.auth_service import AuthService
 from app.application.errors import InvalidCredentialsError, InvalidResetTokenError
@@ -14,6 +16,8 @@ from app.domain.services.auth_token_service import AuthTokenClaims, AuthTokenSer
 from app.domain.services.email_service import EmailService
 from app.domain.services.password_hasher import PasswordHasher
 from app.domain.services.reset_token_service import ResetTokenService
+from app.main import app
+from app.presentation.dependencies.auth import get_password_reset_service
 
 
 class InMemoryUserRepository(UserRepository):
@@ -208,6 +212,123 @@ class PasswordResetServiceTests(unittest.TestCase):
 
         self.assertEqual(self.email_service.messages, [])
         self.assertEqual(self.tokens.tokens, {})
+
+
+async def _send_request(
+    method: str,
+    path: str,
+    *,
+    body: bytes = b"",
+    content_type: str | None = None,
+) -> tuple[int, bytes, dict[str, str]]:
+    messages: list[dict] = []
+    headers = [(b"host", b"testserver")]
+    split_path = urlsplit(path)
+    request_path = split_path.path or "/"
+    if content_type is not None:
+        headers.append((b"content-type", content_type.encode("latin-1")))
+    if body:
+        headers.append((b"content-length", str(len(body)).encode("latin-1")))
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": request_path,
+        "raw_path": request_path.encode("ascii"),
+        "query_string": split_path.query.encode("ascii"),
+        "headers": headers,
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+        "root_path": "",
+    }
+
+    sent = False
+
+    async def receive() -> dict:
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    async def send(message: dict) -> None:
+        messages.append(message)
+
+    await app(scope, receive, send)
+
+    start = next(message for message in messages if message["type"] == "http.response.start")
+    response_headers = {
+        key.decode("latin-1"): value.decode("latin-1")
+        for key, value in start.get("headers", [])
+    }
+    response_body = b"".join(
+        message.get("body", b"")
+        for message in messages
+        if message["type"] == "http.response.body"
+    )
+    return start["status"], response_body, response_headers
+
+
+class _PasswordResetWebServiceStub:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def validate_reset_token(self, raw_token: str | None) -> bool:
+        return raw_token == "valid-token"
+
+    def reset_password(self, raw_token: str | None, new_password: str) -> None:
+        self.calls.append((raw_token or "", new_password))
+
+
+class PasswordResetWebFlowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = _PasswordResetWebServiceStub()
+        app.dependency_overrides[get_password_reset_service] = lambda: self.service
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+
+    def test_reset_password_page_shows_confirmation_field_for_valid_token(self) -> None:
+        status_code, body, _ = asyncio.run(_send_request("GET", "/reset-password?token=valid-token"))
+
+        html = body.decode("utf-8")
+        self.assertEqual(status_code, 200)
+        self.assertIn('name="confirm_password"', html)
+        self.assertIn('name="token" value="valid-token"', html)
+
+    def test_reset_password_requires_matching_confirmation(self) -> None:
+        status_code, body, _ = asyncio.run(
+            _send_request(
+                "POST",
+                "/reset-password",
+                body=b"token=valid-token&password=newpassword456&confirm_password=otherpassword456",
+                content_type="application/x-www-form-urlencoded",
+            )
+        )
+
+        html = body.decode("utf-8")
+        self.assertEqual(status_code, 200)
+        self.assertIn("Passwords do not match.", html)
+        self.assertIn('name="confirm_password"', html)
+        self.assertEqual(self.service.calls, [])
+
+    def test_reset_password_redirects_after_matching_confirmation(self) -> None:
+        status_code, _, headers = asyncio.run(
+            _send_request(
+                "POST",
+                "/reset-password",
+                body=b"token=valid-token&password=newpassword456&confirm_password=newpassword456",
+                content_type="application/x-www-form-urlencoded",
+            )
+        )
+
+        self.assertEqual(status_code, 303)
+        self.assertEqual(headers.get("location"), "/login?reset=success")
+        self.assertEqual(self.service.calls, [("valid-token", "newpassword456")])
+        self.assertIn("saas_session=\"\"", headers.get("set-cookie", ""))
 
 
 if __name__ == "__main__":
