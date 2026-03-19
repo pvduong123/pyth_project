@@ -20,6 +20,21 @@ ruff check .
 pytest -q
 ```
 
+You can also use the orchestration script:
+
+```bash
+./scripts/run_agents.sh "Describe the feature or bugfix here"
+```
+
+The script will:
+
+- snapshot the repo before the run
+- execute `Code Agent`
+- review only the changes introduced during that run
+- execute `Test Agent`
+- optionally run `ruff check .` and `pytest -q`
+- save prompts, outputs, diffs, and verification logs under `.agent-runs/`
+
 ## Collaboration Rules
 
 - Keep production code ownership with `Code Agent`.
