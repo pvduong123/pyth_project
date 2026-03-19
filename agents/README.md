@@ -1,19 +1,21 @@
 # AI Agents For This Repo
 
-This directory contains prompt templates for running three specialized AI agents on this FastAPI codebase.
+This directory contains prompt templates for running specialized AI agents on this FastAPI codebase.
 
 ## Agents
 
+- `spec-agent.md`: Turns a rough request into a complete implementation-ready spec through focused clarification.
 - `code-agent.md`: Implements features and fixes bugs.
 - `review-agent.md`: Reviews code changes and reports risks or defects.
 - `test-agent.md`: Adds and updates unit tests and integration tests.
 
 ## Recommended Flow
 
-1. Run `Code Agent` on a specific feature or bugfix.
-2. Run `Review Agent` on the resulting diff.
-3. Run `Test Agent` on the same diff and on any review findings that require coverage.
-4. Run verification commands locally:
+1. Run `Spec Agent` when the request is still incomplete, rough, or ambiguous.
+2. Run `Code Agent` on the approved spec or specific bugfix.
+3. Run `Review Agent` on the resulting diff.
+4. Run `Test Agent` on the same diff and on any review findings that require coverage.
+5. Run verification commands locally:
 
 ```bash
 ruff check .
@@ -30,6 +32,7 @@ Useful variants:
 
 ```bash
 ./scripts/run_agents.sh --parallel "Describe the feature or bugfix here"
+./scripts/run_agents.sh --only spec "Clarify the new billing workflow"
 ./scripts/run_agents.sh --only review "Review the current working tree"
 ./scripts/run_agents.sh --only test "Write tests for the current working tree"
 ./scripts/run_agents.sh --verify-cmd "pytest tests/test_password_reset.py -q" "Harden password reset flow"
@@ -38,12 +41,15 @@ Useful variants:
 The script will:
 
 - snapshot the repo before the run
+- execute `Spec Agent`
 - execute `Code Agent`
 - review only the changes introduced during that run
 - execute `Test Agent`
 - optionally run `Review Agent` and `Test Agent` in parallel after the code stage
 - optionally run `ruff check .` and `pytest -q`
 - save prompts, outputs, diffs, and verification logs under `.agent-runs/`
+
+In `all` mode, `Code Agent` receives the `Spec Agent` output as run context.
 
 ## Collaboration Rules
 
@@ -57,6 +63,7 @@ The script will:
 
 Use prompts like these when dispatching work:
 
+- `Spec Agent`: "Clarify this rough request and turn it into a complete spec with acceptance criteria, assumptions, and open questions."
 - `Code Agent`: "Implement X without broad refactors. Follow the repository architecture and summarize changed files."
 - `Review Agent`: "Review the diff for bugs, regressions, edge cases, and missing validation. Report findings only."
 - `Test Agent`: "Write unit and integration tests for the new behavior. Prefer minimal fixtures and summarize uncovered risks."

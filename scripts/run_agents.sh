@@ -25,7 +25,7 @@ Usage:
 
 Options:
   --model MODEL              Override the Codex model
-  --only MODE                Run only one stage: all, code, review, test
+  --only MODE                Run only one stage: all, spec, code, review, test
   --parallel                 Run Review Agent and Test Agent in parallel after Code Agent
   --no-verify                Skip local verification commands
   --verify-cmd COMMAND       Add a custom verification command (repeatable)
@@ -34,12 +34,14 @@ Options:
 Examples:
   ./scripts/run_agents.sh "Add audit logging for password reset"
   ./scripts/run_agents.sh --model gpt-5.2 "Fix billing page validation"
+  ./scripts/run_agents.sh --only spec "Clarify the new billing workflow"
   ./scripts/run_agents.sh --only review "Review the current working tree"
   ./scripts/run_agents.sh --parallel "Improve reset password error handling"
   ./scripts/run_agents.sh --verify-cmd "pytest tests/test_password_reset.py -q" "Harden auth flows"
 
 Modes:
-  all     Run Code Agent, then Review Agent and Test Agent, then verification
+  all     Run Spec Agent, Code Agent, then Review Agent and Test Agent, then verification
+  spec    Run only Spec Agent to produce an implementation-ready spec
   code    Run only Code Agent, then optional verification
   review  Run only Review Agent on the current working tree changes
   test    Run only Test Agent on the current working tree changes
@@ -230,6 +232,11 @@ run_verification() {
 
 write_code_prompt() {
   local prompt_file="$1"
+  local spec_reference=""
+
+  if [[ -n "${SPEC_OUTPUT:-}" && -f "${SPEC_OUTPUT:-}" ]]; then
+    spec_reference="- Specification prepared for this run: \`$SPEC_OUTPUT\`"
+  fi
 
   cat > "$prompt_file" <<EOF
 $(cat "$AGENTS_DIR/code-agent.md")
@@ -242,9 +249,29 @@ $TASK
 
 - Repository root: \`$ROOT\`
 - Baseline snapshot for this run: \`$BASELINE_DIR\`
+$spec_reference
 - Only implement the requested task
 - Keep changes focused and repo-consistent
 - Leave a clean handoff for Review Agent and Test Agent
+EOF
+}
+
+write_spec_prompt() {
+  local prompt_file="$1"
+
+  cat > "$prompt_file" <<EOF
+$(cat "$AGENTS_DIR/spec-agent.md")
+
+## Initial Request
+
+$TASK
+
+## Run Context
+
+- Repository root: \`$ROOT\`
+- Produce an implementation-ready spec for this repository
+- If the request is still ambiguous, make the best reasonable assumptions and surface them clearly
+- Optimize for a spec that downstream agents can execute without guessing
 EOF
 }
 
@@ -313,14 +340,30 @@ EOF
 }
 
 run_code_stage() {
-  CODE_PROMPT="$RUN_DIR/01-code-agent.prompt.md"
-  CODE_OUTPUT="$RUN_DIR/01-code-agent.output.md"
+  local prompt_index="${1:-01}"
+  local output_index="${2:-01}"
+
+  CODE_PROMPT="$RUN_DIR/${prompt_index}-code-agent.prompt.md"
+  CODE_OUTPUT="$RUN_DIR/${output_index}-code-agent.output.md"
 
   write_code_prompt "$CODE_PROMPT"
 
   echo "==> Running Code Agent"
   run_codex_exec "$CODE_PROMPT" "$CODE_OUTPUT"
   collect_run_changes "02-after-code"
+}
+
+run_spec_stage() {
+  local prompt_index="${1:-01}"
+  local output_index="${2:-01}"
+
+  SPEC_PROMPT="$RUN_DIR/${prompt_index}-spec-agent.prompt.md"
+  SPEC_OUTPUT="$RUN_DIR/${output_index}-spec-agent.output.md"
+
+  write_spec_prompt "$SPEC_PROMPT"
+
+  echo "==> Running Spec Agent"
+  run_codex_exec "$SPEC_PROMPT" "$SPEC_OUTPUT"
 }
 
 run_review_stage_from_run() {
@@ -441,7 +484,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 case "$RUN_MODE" in
-  all|code|review|test)
+  all|spec|code|review|test)
     ;;
   *)
     echo "Invalid mode for --only: $RUN_MODE" >&2
@@ -470,6 +513,7 @@ require_cmd rsync
 require_cmd git
 
 for file in \
+  "$AGENTS_DIR/spec-agent.md" \
   "$AGENTS_DIR/code-agent.md" \
   "$AGENTS_DIR/review-agent.md" \
   "$AGENTS_DIR/test-agent.md"
@@ -494,7 +538,8 @@ git -C "$ROOT" diff > "$RUN_DIR/git-diff-before.patch" || true
 case "$RUN_MODE" in
   all)
     snapshot_repo
-    run_code_stage
+    run_spec_stage "01" "01"
+    run_code_stage "02" "02"
 
     if [[ "$PARALLEL_REVIEW_TEST" -eq 1 ]]; then
       run_review_stage_from_run &
@@ -510,9 +555,12 @@ case "$RUN_MODE" in
 
     collect_run_changes "05-after-test"
     ;;
+  spec)
+    run_spec_stage "01" "01"
+    ;;
   code)
     snapshot_repo
-    run_code_stage
+    run_code_stage "01" "01"
     collect_run_changes "05-after-test"
     ;;
   review)
@@ -534,6 +582,9 @@ fi
 echo
 echo "Workflow complete."
 echo "Artifacts:"
+if [[ -n "${SPEC_OUTPUT:-}" ]]; then
+  echo "  Spec Agent output:   $SPEC_OUTPUT"
+fi
 if [[ -n "${CODE_OUTPUT:-}" ]]; then
   echo "  Code Agent output:   $CODE_OUTPUT"
 fi

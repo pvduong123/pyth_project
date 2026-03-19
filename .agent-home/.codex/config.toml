@@ -1,5 +1,7 @@
 model = "gpt-5.4"
 model_reasoning_effort = "medium"
+suppress_unstable_features_warning = true
 
 [features]
-default_mode_request_user_input = true
+default_mode_request_user_input = false
+multi_agent = false
